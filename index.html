@@ -11,12 +11,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <!-- Filtro para silenciar warnings nativos de librerías en Chrome (Quirks, XHR Sync) -->
 <script>
-  const originalWarn = console.warn;
-  console.warn = function(...args) {
-    const msg = args.join(' ');
-    if (msg.includes('Synchronous XMLHttpRequest') || msg.includes('Quirks')) return;
-    originalWarn.apply(console, args);
-  };
+  (function(){
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+      const msg = (args[0] || '').toString();
+      if (msg.includes('Synchronous XMLHttpRequest') || msg.includes('Quirks')) return;
+      originalWarn.apply(console, args);
+    };
+  })();
 </script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
