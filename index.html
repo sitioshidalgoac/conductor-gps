@@ -552,7 +552,7 @@ function sendPos() {
     id: driverUnit, name: driverName,
     lat, lng, speed: spd, accuracy: acc,
     status: myStatus, online: true,
-    timestamp: now, lastSeen: now
+    ultimoReporte: now, timestamp: now, lastSeen: now
   });
   document.getElementById('conn-txt').textContent = 'EN LÍNEA';
   document.getElementById('conn-txt').style.color = '#00FF88';
