@@ -551,7 +551,12 @@ function onGPSErr(e) {
 function sendPos() {
   if (!db || !driverUnit || !lat) return;
   const now = firebase.database.ServerValue.TIMESTAMP;
-  db.ref('unidades/' + driverUnit).set({
+  const ref = db.ref('unidades/' + driverUnit);
+  
+  // Limpieza automática al desconectar (Offline en tiempo real)
+  ref.onDisconnect().remove();
+
+  ref.set({
     id: driverUnit, name: driverName,
     lat, lng, speed: spd, accuracy: acc,
     status: myStatus, online: true,
