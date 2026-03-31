@@ -439,6 +439,7 @@ function doLogin() {
     .then(cred => {
       driverUnit = unit;
       driverName = name;
+      myStatus = 'LIBRE'; // Inicializar en LIBRE
 
       document.getElementById('av-letter').textContent = name.charAt(0).toUpperCase();
       document.getElementById('d-name').textContent    = name;
@@ -451,13 +452,14 @@ function doLogin() {
       document.getElementById('scr-main').classList.add('active');
 
       requestWakeLock();
+      initializeDriverStatus(); // ← INICIALIZAR STATUS EN FIREBASE
       startGPS();
       subscribeMessages();
       subscribeAlerts();
       listenSOSReset();
 
       toast('✅ Bienvenido, ' + name + ' · Buen turno!', 'ok');
-    })
+    }))
     .catch(e => {
       const msg = e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password'
         ? '❌ Unidad o código incorrecto'
@@ -470,23 +472,65 @@ function doLogin() {
 }
 
 // ════════════════════════════════════════
-// LOGOUT
+// LOGOUT — MEJORADO
 // ════════════════════════════════════════
 function doLogout() {
   if (!confirm('¿Terminar turno?')) return;
+  
+  // Detener el monitor de sincronización
+  stopStatusMonitor();
+
+  // Guardar estado final en Firebase
   if (db && driverUnit) {
-      db.ref('unidades/' + driverUnit).update({ status:'OFFLINE', online:false, speed:0 });
+    const ref = db.ref('unidades/' + driverUnit);
+    ref.update({
+      status: 'OFFLINE',
+      online: false,
+      speed: 0,
+      desconectadoEn: firebase.database.ServerValue.TIMESTAMP,
+      ultimaTurno: tripViajes,
+      ultimosKm: totalKm.toFixed(1)
+    }).then(() => {
+      console.log('✅ Sesión cerrada correctamente');
+    }).catch(err => {
+      console.error('❌ Error al desconectar:', err);
+    });
   }
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-  if (sendInt) clearInterval(sendInt);
+
+  // Limpiar listeners y timers
+  if (watchId) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  if (sendInt) {
+    clearInterval(sendInt);
+    sendInt = null;
+  }
+
+  // Cerrar sesión en Firebase Auth
   firebase.auth().signOut();
+
+  // Resetear UI
   document.getElementById('scr-main').classList.remove('active');
   document.getElementById('scr-login').classList.add('active');
-  // Limpiar campos
   document.getElementById('l-unit').value = '';
   document.getElementById('l-name').value = '';
   document.getElementById('l-pass').value = '';
-  driverUnit = ''; driverName = ''; lat = null; lng = null;
+
+  // Limpiar estado global
+  driverUnit = '';
+  driverName = '';
+  myStatus = 'LIBRE';
+  lat = null;
+  lng = null;
+  spd = 0;
+  acc = 0;
+  historial = [];
+  tripViajes = 0;
+  totalKm = 0;
+  viajeActivo = null;
+  
+  toast('✅ Sesión cerrada', 'ok');
 }
 
 // ════════════════════════════════════════
@@ -508,6 +552,73 @@ function updateUnreadBadge() {
 // ════════════════════════════════════════
 // GPS
 // ════════════════════════════════════════
+function initializeDriverStatus() {
+  // Inicializar estado del conductor en Firebase como LIBRE al conectar
+  if (!db || !driverUnit) return;
+  
+  const ref = db.ref('unidades/' + driverUnit);
+  const now = firebase.database.ServerValue.TIMESTAMP;
+  
+  ref.set({
+    id: driverUnit,
+    name: driverName,
+    status: 'LIBRE', // ← SIEMPRE EN MAYÚSCULAS
+    online: true,
+    lat: 0,
+    lng: 0,
+    speed: 0,
+    accuracy: 0,
+    conectadoEn: now,
+    timestamp: now,
+    ultimoReporte: now
+  }).then(() => {
+    console.log('✅ Estado inicial sincronizado en Firebase — LIBRE');
+    // Monitorear sincronización cada 30 segundos
+    startStatusMonitor();
+  }).catch(err => {
+    console.error('❌ Error inicializando estado:', err);
+    toast('⚠️ Error de conexión inicial', 'warn');
+  });
+}
+
+// Monitor de sincronización de status (ejecutarse cada 30 segundos)
+let statusMonitorInt = null;
+function startStatusMonitor() {
+  if (statusMonitorInt) clearInterval(statusMonitorInt);
+  
+  statusMonitorInt = setInterval(() => {
+    if (!db || !driverUnit) return;
+    
+    // Verificar que el status en Firebase coincida con el local
+    db.ref('unidades/' + driverUnit + '/status').once('value', snap => {
+      const fbStatus = String(snap.val() || '').toUpperCase();
+      const localStatus = String(myStatus).toUpperCase();
+      
+      if (fbStatus !== localStatus && fbStatus !== 'SOS' && localStatus !== 'SOS') {
+        console.warn(`⚠️ Desincronización detectada: Firebase=${fbStatus}, Local=${localStatus}`);
+        console.warn('🔄 Resintonizando...');
+        
+        // Resincronizar
+        db.ref('unidades/' + driverUnit).update({
+          status: localStatus,
+          lastResync: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+          console.log('✅ Status resintonizado');
+        }).catch(err => {
+          console.error('❌ Error en resintonización:', err);
+        });
+      }
+    });
+  }, 30000);
+}
+
+function stopStatusMonitor() {
+  if (statusMonitorInt) {
+    clearInterval(statusMonitorInt);
+    statusMonitorInt = null;
+  }
+}
+
 function startGPS() {
   if (!navigator.geolocation) { toast('⚠️ GPS no disponible', 'warn'); return; }
   document.getElementById('gps-status').style.display = 'block';
@@ -549,19 +660,33 @@ function onGPSErr(e) {
 }
 
 function sendPos() {
-  if (!db || !driverUnit || !lat) return;
+  if (!db || !driverUnit || lat === null) return;
+  
   const now = firebase.database.ServerValue.TIMESTAMP;
   const ref = db.ref('unidades/' + driverUnit);
   
-  // Limpieza automática al desconectar (Offline en tiempo real)
-  ref.onDisconnect().remove();
+  // Configurar presencia: al desconectar, marcar como offline
+  ref.child('online').onDisconnect().set(false);
+  ref.child('status').onDisconnect().set('OFFLINE');
 
-  ref.set({
-    id: driverUnit, name: driverName,
-    lat, lng, speed: spd, accuracy: acc,
-    status: myStatus, online: true,
-    ultimoReporte: now, timestamp: now, lastSeen: now
+  // Actualizar datos de GPS y estado (usar update para no sobrescribir otros campos)
+  ref.update({
+    id: driverUnit,
+    name: driverName,
+    lat: lat,
+    lng: lng,
+    speed: spd,
+    accuracy: acc,
+    status: String(myStatus).toUpperCase(), // Asegurar mayúsculas
+    online: true,
+    ultimoReporte: now,
+    timestamp: now,
+    lastSeen: now,
+    'sync-check': firebase.database.ServerValue.TIMESTAMP
+  }).catch(err => {
+    console.error('❌ Error actualizando posición en Firebase:', err);
   });
+
   document.getElementById('conn-txt').textContent = 'EN LÍNEA';
   document.getElementById('conn-txt').style.color = '#00FF88';
 }
@@ -579,71 +704,195 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 // ════════════════════════════════════════
-// ESTADO
+// ESTADO — MEJORADO CON VALIDACIÓN
 // ════════════════════════════════════════
 function setStatus(s) {
   const prev = myStatus;
-
-  if (s === 'OCUPADO' && prev !== 'OCUPADO') {
-    viajeActivo = { startTime: Date.now(), startLat: lat, startLng: lng };
-  }
-  if (prev === 'OCUPADO' && s !== 'OCUPADO' && viajeActivo) {
-    const dur  = Math.round((Date.now() - viajeActivo.startTime) / 60000);
-    const dist = calcDist(viajeActivo.startLat, viajeActivo.startLng, lat, lng);
-    const v = {
-      id: historial.length + 1,
-      fecha:    new Date(viajeActivo.startTime).toLocaleDateString('es-MX'),
-      horaIni:  new Date(viajeActivo.startTime).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}),
-      horaFin:  new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}),
-      duracion: dur, distancia: dist.toFixed(1)
-    };
-    historial.unshift(v);
-    tripViajes++;
-    totalKm += parseFloat(dist);
-    document.getElementById('pf-viajes').textContent = tripViajes;
-    document.getElementById('pf-km').textContent     = totalKm.toFixed(1);
-    renderHistorial();
-    if (db) db.ref('historial/' + driverUnit + '/' + v.id).set(v);
-    viajeActivo = null;
+  const statusUpperCase = String(s).trim().toUpperCase();
+  
+  // Validar status válido
+  if (!['LIBRE', 'OCUPADO', 'DESCANSO', 'SOS'].includes(statusUpperCase)) {
+    console.error('❌ Status inválido:', s);
+    toast('⚠️ Status inválido', 'warn');
+    return;
   }
 
-  myStatus = s;
-  document.getElementById('gc-st').textContent = s.toUpperCase();
+  // ══════════════════════════════════════════
+  // CAPTURAR FIN DE VIAJE (OCUPADO → LIBRE/DESCANSO)
+  // ══════════════════════════════════════════
+  if (prev === 'OCUPADO' && statusUpperCase !== 'OCUPADO' && viajeActivo) {
+    if (lat !== null && lng !== null) {
+      // Solo guardar si tenemos coordenadas válidas
+      const inicio = viajeActivo.startTime;
+      const fin = Date.now();
+      const durMinutos = Math.max(1, Math.round((fin - inicio) / 60000)); // Mínimo 1 minuto
+      const distancia = calcDist(viajeActivo.startLat, viajeActivo.startLng, lat, lng);
+
+      const viaje = {
+        id: historial.length + 1,
+        inicio: firebase.database.ServerValue.TIMESTAMP,
+        fin: firebase.database.ServerValue.TIMESTAMP,
+        fecha: new Date(inicio).toLocaleDateString('es-MX'),
+        horaIni: new Date(inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        horaFin: new Date(fin).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        duracion: durMinutos,
+        distancia: Math.max(0, distancia).toFixed(1),
+        latIni: viajeActivo.startLat,
+        lngIni: viajeActivo.startLng,
+        latFin: lat,
+        lngFin: lng,
+        estado: 'completado'
+      };
+
+      // Agregar a historial local
+      historial.unshift(viaje);
+      tripViajes++;
+      totalKm += parseFloat(viaje.distancia);
+
+      // Actualizar UI
+      document.getElementById('pf-viajes').textContent = tripViajes;
+      document.getElementById('pf-km').textContent = totalKm.toFixed(1);
+      renderHistorial();
+
+      // ═══ GUARDAR EN FIREBASE (localmente primero, luego en BD) ═══
+      if (db && driverUnit) {
+        const viajePath = 'historial/' + driverUnit + '/' + viaje.id;
+        db.ref(viajePath).set(viaje).then(() => {
+          console.log('📝 Viaje guardado en Firebase:', viajePath);
+          toast('✅ Viaje registrado en bitácora', 'ok');
+        }).catch(err => {
+          console.error('❌ Error guardando viaje:', err);
+          toast('⚠️ Error guardando viaje: ' + err.message, 'warn');
+        });
+      }
+
+      viajeActivo = null;
+    } else {
+      console.warn('⚠️ Coordenadas GPS no disponibles, viaje no guardado');
+      toast('⚠️ Sin señal GPS — viaje no registrado', 'warn');
+      viajeActivo = null;
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // INICIAR NUEVO VIAJE (LIBRE → OCUPADO)
+  // ══════════════════════════════════════════
+  if (statusUpperCase === 'OCUPADO' && prev !== 'OCUPADO') {
+    if (lat !== null && lng !== null) {
+      viajeActivo = {
+        startTime: Date.now(),
+        startLat: lat,
+        startLng: lng
+      };
+      console.log('🚖 Viaje iniciado:', viajeActivo);
+    } else {
+      console.warn('⚠️ Sin GPS disponible — no se puede iniciar viaje');
+      toast('⚠️ Requiere señal GPS para estado OCUPADO', 'warn');
+      return; // No cambiar estado sin GPS
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // ACTUALIZAR ESTADO LOCALMENTE
+  // ══════════════════════════════════════════
+  myStatus = statusUpperCase;
+  document.getElementById('gc-st').textContent = statusUpperCase;
   document.querySelectorAll('.st-btn').forEach(b => {
-    b.classList.toggle('on', b.dataset.st === s);
+    b.classList.toggle('on', b.dataset.st === statusUpperCase);
   });
-  if (db && driverUnit) db.ref('unidades/' + driverUnit + '/status').set(s);
+
+  // ══════════════════════════════════════════
+  // SINCRONIZAR INMEDIATAMENTE CON FIREBASE
+  // ══════════════════════════════════════════
+  if (db && driverUnit) {
+    const statusRef = db.ref('unidades/' + driverUnit);
+    
+    // Actualizar atomicamente: status + timestamp
+    statusRef.update({
+      status: statusUpperCase,
+      ultimoEstado: firebase.database.ServerValue.TIMESTAMP,
+      lastStatusChange: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      console.log('✅ Status sincronizado en Firebase:', statusUpperCase);
+    }).catch(err => {
+      console.error('❌ Error sincronizando status:', err);
+      toast('⚠️ Error conectando con Base: ' + err.message, 'warn');
+    });
+  } else {
+    console.warn('⚠️ No hay conexión DB/unitId');
+  }
 }
 
-function calcDist(a, b, c, d) {
-  if (!a || !c) return 0;
-  const R = 6371, dL = (c-a)*Math.PI/180, dG = (d-b)*Math.PI/180;
-  const x = Math.sin(dL/2)**2 + Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+function calcDist(lat1, lng1, lat2, lng2) {
+  // Validar que todas las coordenadas sean números válidos
+  if (!lat1 || !lng1 || !lat2 || !lng2 || 
+      isNaN(lat1) || isNaN(lng1) || isNaN(lat2) || isNaN(lng2)) {
+    console.warn('⚠️ Coordenadas inválidas para cálculo de distancia:', { lat1, lng1, lat2, lng2 });
+    return 0;
+  }
+
+  // Fórmula de Haversine
+  const R = 6371; // Radio de la Tierra en km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const dist = R * c;
+  
+  // Asegurar que el resultado sea positivo
+  return Math.abs(dist) >= 0.001 ? dist : 0; // Ignorar distancias < 1 metro
 }
 
 // ════════════════════════════════════════
-// HISTORIAL
+// HISTORIAL — MEJORADO
 // ════════════════════════════════════════
 function renderHistorial() {
   const el = document.getElementById('hist-list');
+  
+  // Actualizar contador
   document.getElementById('hist-dt').textContent = 'HOY · ' + tripViajes + ' VIAJES';
-  if (!historial.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px;font-family:var(--mono);font-size:12px;line-height:2.5">Los viajes aparecerán aquí<br>conforme avance el turno</div>';
+  
+  if (!historial || historial.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px;font-family:var(--mono);font-size:12px;line-height:2.5">Los viajes aparecerán aquí<br>conforme avance el turno<br><br><span style="font-size:10px">Total: ' + totalKm.toFixed(1) + ' km</span></div>';
     return;
   }
-  el.innerHTML = historial.map(v => `
-    <div class="hist-item">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="hist-id">VIAJE #${v.id}</span>
-        <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${v.fecha}</span>
-      </div>
-      <div class="hist-grid">
-        <div class="hist-box"><div class="hist-val">${v.duracion}<small style="font-size:10px;color:var(--muted)">min</small></div><div class="hist-lbl">DURACIÓN</div></div>
-        <div class="hist-box"><div class="hist-val">${v.distancia}<small style="font-size:10px;color:var(--muted)">km</small></div><div class="hist-lbl">DISTANCIA</div></div>
-      </div>
-      <div class="hist-hora">🕐 ${v.horaIni} → ${v.horaFin}</div>
-    </div>`).join('');
+
+  el.innerHTML = historial.map((v, idx) => {
+    // Validaciones de seguridad
+    const dur = v.duracion || 0;
+    const dist = v.distancia || '0.0';
+    const horaIni = v.horaIni || '—';
+    const horaFin = v.horaFin || '—';
+    const fecha = v.fecha || new Date().toLocaleDateString('es-MX');
+    
+    return `
+      <div class="hist-item" style="opacity:${idx === 0 ? '1' : '0.7'};transition:opacity .3s">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="hist-id">VIAJE #${v.id || idx + 1}</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;gap:4px">
+            <span>${v.estado === 'completado' ? '✅' : '⏳'}</span>
+            <span>${fecha}</span>
+          </span>
+        </div>
+        <div class="hist-grid">
+          <div class="hist-box">
+            <div class="hist-val">${dur}<small style="font-size:10px;color:var(--muted)">min</small></div>
+            <div class="hist-lbl">DURACIÓN</div>
+          </div>
+          <div class="hist-box">
+            <div class="hist-val">${dist}<small style="font-size:10px;color:var(--muted)">km</small></div>
+            <div class="hist-lbl">DISTANCIA</div>
+          </div>
+        </div>
+        <div class="hist-hora" style="text-align:center;font-size:11px">
+          <span style="color:var(--green)">🕐 ${horaIni}</span>
+          <span style="color:var(--muted);">→</span>
+          <span style="color:var(--green)">${horaFin}</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ════════════════════════════════════════
@@ -657,11 +906,25 @@ function confirmSOS() {
   myStatus = 'SOS';
   document.getElementById('sos-activo').style.display = 'flex';
   if (db && driverUnit) {
-    db.ref('unidades/' + driverUnit + '/status').set('SOS');
+    // Usar update para no sobrescribir otros campos
+    db.ref('unidades/' + driverUnit).update({
+      status: 'SOS',
+      sosActivadoEn: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      console.log('🚨 SOS actualizado en Firebase');
+    }).catch(err => {
+      console.error('❌ Error enviando SOS:', err);
+    });
+
+    // Registrar en alertas
     db.ref('alertas_sos/' + driverUnit).set({
-      unit: driverUnit, name: driverName,
-      lat: lat||0, lng: lng||0,
+      unit: driverUnit,
+      name: driverName,
+      lat: lat || 0,
+      lng: lng || 0,
       timestamp: firebase.database.ServerValue.TIMESTAMP
+    }).catch(err => {
+      console.error('❌ Error registrando alerta SOS:', err);
     });
   }
   toast('🚨 SOS enviado — Base Central notificada', 'danger');
