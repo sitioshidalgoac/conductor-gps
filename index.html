@@ -287,9 +287,9 @@ body{background:var(--bg);color:#fff;font-family:var(--body);height:100vh;overfl
       <div class="st-sec">
         <div class="st-lbl">MI ESTADO</div>
         <div class="st-btns">
-          <button class="st-btn libre on" data-st="libre" onclick="setStatus('libre')">🟢 LIBRE</button>
-          <button class="st-btn ocupado" data-st="ocupado" onclick="setStatus('ocupado')">🟠 OCUPADO</button>
-          <button class="st-btn descanso" data-st="descanso" onclick="setStatus('descanso')">🔵 DESCANSO</button>
+          <button class="st-btn libre on" data-st="LIBRE" onclick="setStatus('LIBRE')">🟢 LIBRE</button>
+          <button class="st-btn ocupado" data-st="OCUPADO" onclick="setStatus('OCUPADO')">🟠 OCUPADO</button>
+          <button class="st-btn descanso" data-st="DESCANSO" onclick="setStatus('DESCANSO')">🔵 DESCANSO</button>
         </div>
       </div>
       <div class="sos-sec">
@@ -395,7 +395,7 @@ const FB = {
 // ESTADO GLOBAL
 // ════════════════════════════════════════
 let db = null;
-let driverUnit = '', driverName = '', myStatus = 'libre';
+let driverUnit = '', driverName = '', myStatus = 'LIBRE';
 let lat = null, lng = null, spd = 0, acc = 0;
 let watchId = null, sendInt = null, wakeLock = null;
 let historial = [], tripViajes = 0, totalKm = 0;
@@ -475,7 +475,7 @@ function doLogin() {
 function doLogout() {
   if (!confirm('¿Terminar turno?')) return;
   if (db && driverUnit) {
-    db.ref('unidades/' + driverUnit).update({ status:'offline', online:false, speed:0 });
+      db.ref('unidades/' + driverUnit).update({ status:'OFFLINE', online:false, speed:0 });
   }
   if (watchId) navigator.geolocation.clearWatch(watchId);
   if (sendInt) clearInterval(sendInt);
@@ -584,10 +584,10 @@ document.addEventListener('visibilitychange', async () => {
 function setStatus(s) {
   const prev = myStatus;
 
-  if (s === 'ocupado' && prev !== 'ocupado') {
+  if (s === 'OCUPADO' && prev !== 'OCUPADO') {
     viajeActivo = { startTime: Date.now(), startLat: lat, startLng: lng };
   }
-  if (prev === 'ocupado' && s !== 'ocupado' && viajeActivo) {
+  if (prev === 'OCUPADO' && s !== 'OCUPADO' && viajeActivo) {
     const dur  = Math.round((Date.now() - viajeActivo.startTime) / 60000);
     const dist = calcDist(viajeActivo.startLat, viajeActivo.startLng, lat, lng);
     const v = {
@@ -654,10 +654,10 @@ function closeSOS() { document.getElementById('sos-modal').classList.remove('sho
 
 function confirmSOS() {
   closeSOS();
-  myStatus = 'sos';
+  myStatus = 'SOS';
   document.getElementById('sos-activo').style.display = 'flex';
   if (db && driverUnit) {
-    db.ref('unidades/' + driverUnit + '/status').set('sos');
+    db.ref('unidades/' + driverUnit + '/status').set('SOS');
     db.ref('alertas_sos/' + driverUnit).set({
       unit: driverUnit, name: driverName,
       lat: lat||0, lng: lng||0,
@@ -671,7 +671,7 @@ function listenSOSReset() {
   if (!db || !driverUnit) return;
   db.ref('unidades/' + driverUnit + '/status').on('value', snap => {
     const s = snap.val();
-    if (s && s !== 'sos' && myStatus === 'sos') {
+    if (s && s !== 'SOS' && myStatus === 'SOS') {
       myStatus = s;
       document.getElementById('sos-activo').style.display = 'none';
       document.querySelectorAll('.st-btn').forEach(b => b.classList.toggle('on', b.dataset.st === s));
