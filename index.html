@@ -238,9 +238,82 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
 .sos-activo-box{background:#1A0005;border:2px solid var(--red);border-radius:20px;padding:24px;width:100%;max-width:320px;text-align:center;}
 .sos-pasos{background:rgba(0,0,0,.4);border-radius:10px;padding:14px;margin:14px 0;text-align:left;font-size:12px;color:#fff;line-height:2.2;}
 .sos-gps{background:rgba(0,0,0,.3);border-radius:8px;padding:8px;font-family:var(--mono);font-size:11px;color:#FFD000;}
-</style>
+
+    /* ── MAPA GPS PROPIO ── */
+    #mi-mapa-gps {
+      margin: 0 12px 12px;
+      height: 220px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(201,168,76,.2);
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      flex-shrink: 0;
+    }
+    /* ── CALIFICACIONES PERFIL ── */
+    .prof-cal-section {
+      margin: 0 12px 12px;
+      background: linear-gradient(135deg,var(--navy),var(--navy2));
+      border: 1px solid rgba(201,168,76,.15);
+      border-radius: 14px; padding: 16px;
+    }
+    .prof-cal-title {
+      font-family: var(--mono); font-size: 9px;
+      color: var(--gold); letter-spacing: 3px;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    .cal-promedio-big {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px;
+    }
+    .cal-num-big {
+      font-family: var(--head); font-size: 48px;
+      font-weight: 800; color: var(--gold); line-height: 1;
+    }
+    .cal-stars-big { font-size: 20px; letter-spacing: 2px; }
+    .cal-sub { font-family: var(--mono); font-size: 9px; color: var(--silver3); margin-top: 4px; }
+    .cal-mini-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
+    }
+    .cal-mini-box {
+      background: rgba(0,0,0,.3); border-radius: 8px;
+      padding: 8px; text-align: center;
+    }
+    .cal-mini-val { font-family: var(--head); font-size: 18px; font-weight: 700; }
+    .cal-mini-lbl { font-family: var(--mono); font-size: 8px; color: var(--silver3); letter-spacing: 1px; margin-top: 2px; }
+    /* Historial cal conductor */
+    .cal-hist-item {
+      background: rgba(0,0,0,.2); border-radius: 8px;
+      padding: 8px 10px; margin-bottom: 6px;
+      border-left: 3px solid var(--brd);
+    }
+    .cal-hist-item.alta  { border-left-color: var(--green); }
+    .cal-hist-item.media { border-left-color: var(--yellow); }
+    .cal-hist-item.baja  { border-left-color: var(--red); }
+    /* ── OFFLINE BANNER ── */
+    #offline-banner {
+      display: none; position: fixed; top: 0; left: 0; right: 0;
+      z-index: 9999; background: var(--red);
+      padding: 6px 16px; text-align: center;
+      font-family: var(--mono); font-size: 10px;
+      color: #fff; letter-spacing: 1px;
+      animation: slideDown 0.3s ease;
+    }
+    #offline-banner.show { display: block; }
+    @keyframes slideDown { from { transform: translateY(-100%) } to { transform: translateY(0) } }
+    .offline-queue-badge {
+      display: inline-block; background: rgba(255,255,255,.2);
+      border-radius: 10px; padding: 1px 8px; margin-left: 6px;
+      font-weight: 700;
+    }
+
+  </style>
 </head>
 <body>
+
+<!-- BANNER OFFLINE -->
+<div id="offline-banner">
+  📵 SIN CONEXIÓN — Posiciones en cola <span class="offline-queue-badge" id="offline-count">0</span>
+</div>
 
 <!-- LOGIN -->
 <div class="screen active" id="scr-login">
@@ -295,6 +368,8 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
     <!-- GPS -->
     <div class="page active" id="pg-home">
       <div class="ph"><h2>📍 GPS EN VIVO</h2><small id="gps-fecha">—</small></div>
+      <!-- MAPA DE POSICIÓN PROPIA -->
+      <div id="mi-mapa-gps"></div>
       <div class="gps-card">
         <div class="gps-top">
           <span class="gps-lbl">🛰️ MI POSICIÓN · <span id="lbl-unit" style="color:var(--cyan)">—</span></span>
@@ -345,7 +420,7 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
     </div>
 
     <!-- PERFIL -->
-    <div class="page" id="pg-prof">
+    <div class="page" id="pg-prof" style="overflow-y:auto">
       <div class="prof-card">
         <div class="prof-av">👤</div>
         <div class="prof-nm" id="pf-name">—</div>
@@ -355,6 +430,43 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
           <div class="pstat"><div class="pstat-val" id="pf-km">0</div><div class="pstat-lbl">KM HOY</div></div>
         </div>
       </div>
+
+      <!-- CALIFICACIONES DEL CONDUCTOR -->
+      <div class="prof-cal-section">
+        <div class="prof-cal-title">⭐ MI CALIFICACIÓN</div>
+        <div class="cal-promedio-big">
+          <div class="cal-num-big" id="pf-cal-num">—</div>
+          <div>
+            <div class="cal-stars-big" id="pf-cal-stars">☆☆☆☆☆</div>
+            <div class="cal-sub" id="pf-cal-total">Sin calificaciones aún</div>
+          </div>
+        </div>
+        <div class="cal-mini-grid">
+          <div class="cal-mini-box">
+            <div class="cal-mini-val" id="pf-cal-alertas" style="color:var(--red)">0</div>
+            <div class="cal-mini-lbl">ALERTAS</div>
+          </div>
+          <div class="cal-mini-box">
+            <div class="cal-mini-val" id="pf-cal-bonos" style="color:var(--green)">0</div>
+            <div class="cal-mini-lbl">BONOS ⭐5</div>
+          </div>
+          <div class="cal-mini-box">
+            <div class="cal-mini-val" id="pf-cal-total-num" style="color:var(--cyan)">0</div>
+            <div class="cal-mini-lbl">TOTAL</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORIAL DE CALIFICACIONES -->
+      <div style="padding:0 12px 8px">
+        <div class="prof-cal-title" style="margin-bottom:8px">📋 ÚLTIMAS CALIFICACIONES</div>
+        <div id="pf-cal-historial">
+          <div style="text-align:center;color:var(--silver3);font-family:var(--mono);font-size:11px;padding:16px">
+            Sin calificaciones registradas
+          </div>
+        </div>
+      </div>
+
       <button class="btn-logout" onclick="doLogout()">⏹ TERMINAR TURNO</button>
     </div>
   </div>
@@ -674,6 +786,12 @@ function doLogin() {
       mostrarPantallaEspera();
       // Escuchar solicitudes asignadas
       escucharSolicitudesAsignadas();
+      // Iniciar mapa GPS propio
+      setTimeout(iniciarMiMapa, 500);
+      // Cargar calificaciones del conductor
+      cargarCalificacionesConductor();
+      // Verificar estado de conexión
+      _actualizarBannerOffline();
     }))
     .catch(e => {
       const msg = e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password'
@@ -844,7 +962,7 @@ function startGPS() {
     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
   );
 
-  sendInt = setInterval(sendPos, 5000);
+  sendInt = setInterval(sendPosConOffline, 5000);
 }
 
 function onPos(p) {
@@ -863,6 +981,8 @@ function onPos(p) {
 
   const gpsEl = document.getElementById('sos-gps-txt');
   if (gpsEl) gpsEl.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+  // Actualizar mapa propio
+  actualizarMiMapa(lat, lng, acc);
 }
 
 function onGPSErr(e) {
@@ -1419,6 +1539,216 @@ function escucharSolicitudesAsignadas() {
       if (v && !v.unidadId && myStatus === 'LIBRE' && !_viajeActualId) {
         mostrarViajeAsignado(v, snap.key);
       }
+    });
+}
+
+
+
+// ══════════════════════════════════════════════════════════════
+// MEJORA 1: MAPA GPS PROPIO DEL CONDUCTOR
+// ══════════════════════════════════════════════════════════════
+let _miMapa     = null;
+let _miMarcador = null;
+let _miCirculo  = null;
+
+function iniciarMiMapa() {
+  if (_miMapa) return;
+  const container = document.getElementById('mi-mapa-gps');
+  if (!container) return;
+
+  _miMapa = L.map('mi-mapa-gps', {
+    center: [17.4594, -97.2253], zoom: 15,
+    zoomControl: false, attributionControl: false,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(_miMapa);
+
+  // Marcador del conductor
+  const iconCond = L.divIcon({
+    html: `<div style="
+      width:48px;height:48px;border-radius:50%;
+      background:linear-gradient(135deg,#C9A84C,#E8C97A);
+      border:3px solid #fff;display:flex;align-items:center;
+      justify-content:center;font-size:24px;
+      box-shadow:0 4px 16px rgba(201,168,76,.6);
+    ">🚕</div>`,
+    iconSize:[48,48], iconAnchor:[24,24], className:''
+  });
+
+  _miMarcador = L.marker([17.4594,-97.2253], {icon: iconCond})
+    .addTo(_miMapa)
+    .bindPopup('<b style="font-family:monospace">📍 Mi posición</b>');
+
+  setTimeout(() => _miMapa.invalidateSize(), 200);
+}
+
+function actualizarMiMapa(pLat, pLng, precision) {
+  if (!_miMapa) { iniciarMiMapa(); return; }
+  const ll = [pLat, pLng];
+  _miMarcador.setLatLng(ll);
+  _miMapa.setView(ll, _miMapa.getZoom());
+  // Círculo de precisión
+  if (_miCirculo) _miMapa.removeLayer(_miCirculo);
+  if (precision < 200) {
+    _miCirculo = L.circle(ll, {
+      radius: precision, color: '#C9A84C',
+      fillColor: '#C9A84C', fillOpacity: 0.08, weight: 1
+    }).addTo(_miMapa);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// MEJORA 2: MODO OFFLINE — Cola de posiciones
+// ══════════════════════════════════════════════════════════════
+const OFFLINE_KEY = 'sh_pos_queue';
+let _isOnline     = navigator.onLine;
+let _offlineQueue = [];
+
+// Cargar cola pendiente al iniciar
+try {
+  const saved = localStorage.getItem(OFFLINE_KEY);
+  if (saved) _offlineQueue = JSON.parse(saved) || [];
+} catch(_) {}
+
+function _guardarColaOffline() {
+  try { localStorage.setItem(OFFLINE_KEY, JSON.stringify(_offlineQueue.slice(-50))); } catch(_) {}
+}
+
+function _actualizarBannerOffline() {
+  const banner = document.getElementById('offline-banner');
+  const count  = document.getElementById('offline-count');
+  if (!banner) return;
+  if (!_isOnline) {
+    banner.classList.add('show');
+    if (count) count.textContent = _offlineQueue.length;
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+function _enviarColaOffline() {
+  if (!db || !driverUnit || _offlineQueue.length === 0) return;
+  const lote = _offlineQueue.splice(0, 10);
+  _guardarColaOffline();
+  const updates = {};
+  lote.forEach(pos => {
+    updates['historial_pos/' + driverUnit + '/' + pos.ts] = pos;
+  });
+  db.ref().update(updates).catch(() => {
+    _offlineQueue = [...lote, ..._offlineQueue];
+    _guardarColaOffline();
+  });
+  if (_offlineQueue.length > 0) setTimeout(_enviarColaOffline, 2000);
+  else toast('📡 ' + lote.length + ' posiciones sincronizadas', 'ok');
+}
+
+window.addEventListener('online', () => {
+  _isOnline = true;
+  _actualizarBannerOffline();
+  _enviarColaOffline();
+  toast('📡 Conexión restaurada', 'ok');
+});
+
+window.addEventListener('offline', () => {
+  _isOnline = false;
+  _actualizarBannerOffline();
+  toast('📵 Sin conexión — guardando localmente', 'warn');
+});
+
+// Wrapper para sendPos con soporte offline
+function sendPosConOffline() {
+  if (!lat || !lng) return;
+  const payload = {
+    id: driverUnit, name: driverName,
+    lat, lng, speed: spd, accuracy: acc,
+    status: myStatus, ts: Date.now(),
+  };
+
+  if (!_isOnline || !db) {
+    _offlineQueue.push(payload);
+    _guardarColaOffline();
+    _actualizarBannerOffline();
+    return;
+  }
+  // Online — enviar normalmente
+  if (db && driverUnit) {
+    db.ref('unidades/' + driverUnit).update({
+      ...payload,
+      online: true,
+      ultimoReporte: firebase.database.ServerValue.TIMESTAMP,
+      timestamp: firebase.database.ServerValue.TIMESTAMP,
+      lastSeen: firebase.database.ServerValue.TIMESTAMP,
+    }).catch(() => {
+      _offlineQueue.push(payload);
+      _guardarColaOffline();
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// MEJORA 3: CALIFICACIONES EN PERFIL DEL CONDUCTOR
+// ══════════════════════════════════════════════════════════════
+function cargarCalificacionesConductor() {
+  if (!db || !driverUnit) return;
+  const email = 'unidad' + driverUnit.toLowerCase() + '@sitiohidalgo.mx';
+
+  // Métricas globales
+  db.ref('/metricas_conductores/' + email).on('value', snap => {
+    const m = snap.val();
+    if (!m) return;
+    const prom = m.promedioEstrellas || 0;
+    const total = m.totalCalificaciones || 0;
+
+    const numEl = document.getElementById('pf-cal-num');
+    if (numEl) numEl.textContent = prom.toFixed(1);
+
+    const starsEl = document.getElementById('pf-cal-stars');
+    if (starsEl) {
+      const llenas = Math.round(prom);
+      starsEl.textContent = '★'.repeat(llenas) + '☆'.repeat(5 - llenas);
+      starsEl.style.color = prom >= 4 ? '#34D399' : prom >= 3 ? '#FCD34D' : '#F43F5E';
+    }
+
+    const subEl = document.getElementById('pf-cal-total');
+    if (subEl) subEl.textContent = total + ' calificaciones recibidas';
+
+    const alertasEl = document.getElementById('pf-cal-alertas');
+    if (alertasEl) alertasEl.textContent = m.alertasRojas || 0;
+
+    const bonosEl = document.getElementById('pf-cal-bonos');
+    if (bonosEl) bonosEl.textContent = m.bonosAcumulados || 0;
+
+    const totalEl = document.getElementById('pf-cal-total-num');
+    if (totalEl) totalEl.textContent = total;
+  });
+
+  // Últimas 5 calificaciones
+  db.ref('/calificaciones')
+    .orderByChild('conductorId').equalTo(email)
+    .limitToLast(5)
+    .once('value', snap => {
+      const items = [];
+      snap.forEach(c => items.unshift({ id: c.key, ...c.val() }));
+      const lista = document.getElementById('pf-cal-historial');
+      if (!lista) return;
+      if (items.length === 0) return;
+      lista.innerHTML = items.map(c => {
+        const cls = c.estrellas >= 4 ? 'alta' : c.estrellas >= 3 ? 'media' : 'baja';
+        const est = '★'.repeat(c.estrellas) + '☆'.repeat(5 - c.estrellas);
+        const fch = new Date(c.timestamp).toLocaleString('es-MX', {
+          day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
+        });
+        const tags = (c.etiquetas || []).map(t => t.replace(/_/g,' ')).join(' · ');
+        return `<div class="cal-hist-item ${cls}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:16px;letter-spacing:1px">${est}</span>
+            <span style="font-family:var(--mono);font-size:9px;color:var(--silver3)">${fch}</span>
+          </div>
+          ${tags ? `<div style="font-family:var(--mono);font-size:9px;color:var(--silver3);margin-top:4px">${tags}</div>` : ''}
+        </div>`;
+      }).join('');
     });
 }
 
