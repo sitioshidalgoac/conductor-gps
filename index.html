@@ -2,7 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0F2044">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>SITIOS HIDALGO — Conductor</title>
 <link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -389,6 +391,16 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
           <button class="st-btn libre on" data-st="LIBRE" onclick="setStatus('LIBRE')">🟢 LIBRE</button>
           <button class="st-btn ocupado" data-st="OCUPADO" onclick="setStatus('OCUPADO')">🟠 OCUPADO</button>
           <button class="st-btn descanso" data-st="DESCANSO" onclick="setStatus('DESCANSO')">🔵 DESCANSO</button>
+        </div>
+      </div>
+      <!-- ── PANEL VIAJE EN CURSO ── -->
+      <div id="panel-viaje-curso" style="display:none;background:rgba(201,168,76,0.08);border:1.5px solid rgba(201,168,76,0.4);border-radius:18px;margin:16px;padding:16px;text-align:center;">
+        <div style="color:var(--gold);font-size:12px;letter-spacing:2px;font-family:var(--mono);margin-bottom:10px;">🚖 VIAJE EN CURSO</div>
+        <div id="viaje-cliente-info" style="color:var(--silver);font-size:13px;margin-bottom:14px;">—</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button onclick="btnLlegue()" style="background:rgba(201,168,76,0.2);border:1.5px solid var(--gold);color:var(--gold);border-radius:12px;padding:12px 20px;font-size:13px;font-family:var(--mono);font-weight:bold;cursor:pointer;letter-spacing:1px;">📍 LLEGUÉ</button>
+          <button onclick="btnNavegar()" style="background:rgba(100,200,100,0.15);border:1.5px solid #4ade80;color:#4ade80;border-radius:12px;padding:12px 20px;font-size:13px;font-family:var(--mono);font-weight:bold;cursor:pointer;letter-spacing:1px;">🗺️ NAVEGAR</button>
+          <button onclick="btnCompletado()" style="background:linear-gradient(135deg,#FFD700,#DAA520);border:none;color:#0F2044;border-radius:12px;padding:12px 20px;font-size:13px;font-family:var(--mono);font-weight:bold;cursor:pointer;letter-spacing:1px;">✅ COMPLETADO</button>
         </div>
       </div>
       <div class="sos-sec">
@@ -1493,11 +1505,17 @@ function aceptarViaje() {
     setStatus('OCUPADO');
     cerrarModalViaje();
     toast('✅ Viaje aceptado — ¡En camino!', 'ok');
+    const _vData = _viajeActualData || {};
     viajeActivo = {
       startTime: Date.now(),
       startLat: lat, startLng: lng,
       solicitudId: _viajeActualId,
+      clienteLat: _vData.lat || _vData.clienteLat || null,
+      clienteLng: _vData.lng || _vData.clienteLng || null,
+      clienteNombre: _vData.nombre || _vData.clienteNombre || 'Cliente',
+      destino: _vData.destino || '',
     };
+    actualizarPanelViaje();
   }).catch(e => {
     toast('❌ Error al aceptar: ' + e.message, 'danger');
     btn.textContent = '✓ ACEPTAR';
@@ -1750,6 +1768,72 @@ function cargarCalificacionesConductor() {
         </div>`;
       }).join('');
     });
+}
+
+// ══════════════════════════════════════════════
+// MEJORAS v6: Llegué + Completado + Navegación
+// ══════════════════════════════════════════════
+function actualizarPanelViaje() {
+  const panel = document.getElementById("panel-viaje-curso");
+  if (!panel) return;
+  if (viajeActivo && viajeActivo.solicitudId) {
+    panel.style.display = "block";
+    const info = document.getElementById("viaje-cliente-info");
+    if (info) info.textContent = viajeActivo.clienteNombre ?
+      "👤 " + viajeActivo.clienteNombre + (viajeActivo.destino ? " → " + viajeActivo.destino : "") :
+      "🚖 Viaje en progreso";
+  } else {
+    panel.style.display = "none";
+  }
+}
+function btnLlegue() {
+  if (!viajeActivo || !viajeActivo.solicitudId) return;
+  db.ref("solicitudes/" + viajeActivo.solicitudId).update({
+    estado: "conductor_llego",
+    llegadaEn: firebase.database.ServerValue.TIMESTAMP
+  }).then(() => toast("📍 Llegada notificada al cliente", "ok"))
+    .catch(e => toast("❌ Error: " + e.message, "danger"));
+  if (navigator.vibrate) navigator.vibrate([100,50,100]);
+}
+function btnNavegar() {
+  const dLat = viajeActivo && viajeActivo.clienteLat;
+  const dLng = viajeActivo && viajeActivo.clienteLng;
+  if (!dLat || !dLng) { toast("⚠️ Sin coordenadas del cliente", "warn"); return; }
+  const gmaps = "https://maps.google.com/maps?q=" + dLat + "," + dLng;
+  const waze  = "https://waze.com/ul?ll=" + dLat + "," + dLng + "&navigate=yes";
+  // En móvil intentar abrir Waze nativo, si no Google Maps
+  const wazeApp = "waze://?ll=" + dLat + "," + dLng + "&navigate=yes";
+  const win = window.open(wazeApp, "_blank");
+  setTimeout(() => { window.open(waze, "_blank"); }, 800);
+  toast("🗺️ Abriendo navegación GPS...", "ok");
+}
+function btnCompletado() {
+  if (!viajeActivo || !viajeActivo.solicitudId) { toast("⚠️ Sin viaje activo", "warn"); return; }
+  if (!confirm("¿Confirmar viaje completado?")) return;
+  const duracion = Math.round((Date.now() - (viajeActivo.startTime || Date.now())) / 60000);
+  const distancia = (lat && viajeActivo.startLat) ?
+    calcDist(viajeActivo.startLat, viajeActivo.startLng, lat, lng).toFixed(2) : 0;
+  db.ref("solicitudes/" + viajeActivo.solicitudId).update({
+    estado: "completado",
+    completadoEn: firebase.database.ServerValue.TIMESTAMP,
+    duracionMin: duracion, distanciaKm: distancia
+  }).then(() => {
+    db.ref("historial_viajes/" + driverUnit).push({
+      solicitudId: viajeActivo.solicitudId,
+      inicio: viajeActivo.startTime || Date.now(),
+      fin: Date.now(), duracionMin: duracion, distanciaKm: distancia
+    });
+    toast("✅ ¡Viaje completado!", "ok");
+    setStatus("LIBRE");
+    viajeActivo = null;
+    actualizarPanelViaje();
+  }).catch(e => toast("❌ Error: " + e.message, "danger"));
+}
+// ── Service Worker PWA ──
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw-conductor.js", { scope: "./" })
+    .then(() => console.log("✅ SW Conductor registrado"))
+    .catch(e => console.warn("SW Conductor:", e));
 }
 
 </script>
