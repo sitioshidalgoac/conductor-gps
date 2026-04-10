@@ -53,7 +53,7 @@ function setStatus(s) {
       renderHistorial();
 
       if (db && driverUnit) {
-        const viajePath = 'historial/' + driverUnit + '/' + viaje.id;
+        const viajePath = 'historial_viajes/' + driverUnit + '/' + viaje.id;
         db.ref(viajePath).set(viaje).then(() => {
           toast('✅ Viaje registrado en bitácora', 'ok');
         }).catch(err => {
@@ -87,7 +87,7 @@ function setStatus(s) {
       renderHistorial();
 
       if (db && driverUnit) {
-        db.ref('historial/' + driverUnit + '/' + viaje.id).set(viaje).catch(() => {});
+        db.ref('historial_viajes/' + driverUnit + '/' + viaje.id).set(viaje).catch(() => {});
       }
 
       toast('⚠️ Sin GPS al finalizar — viaje guardado como incompleto', 'warn');
