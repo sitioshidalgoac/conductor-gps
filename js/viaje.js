@@ -329,13 +329,22 @@ function escucharSolicitudesAsignadas() {
   if (_solicitudesRef1) { _solicitudesRef1.off(); }
   if (_solicitudesRef2) { _solicitudesRef2.off(); }
 
-  _solicitudesRef1 = db.ref('solicitudes').orderByChild('unidadId').equalTo(driverUnit);
+  // Viajes asignados a este conductor. Firebase filtra en servidor por unidadId (índice declarado),
+  // luego el callback descarta los que no estén en 'pendiente' — conjunto pequeño, aceptable.
+  _solicitudesRef1 = db.ref('solicitudes')
+    .orderByChild('unidadId')
+    .equalTo(driverUnit);
   _solicitudesRef1.on('child_added', snap => {
     const v = snap.val();
     if (v && v.estado === 'pendiente' && myStatus === 'LIBRE') mostrarViajeAsignado(v, snap.key);
   });
 
-  _solicitudesRef2 = db.ref('solicitudes').orderByChild('estado').equalTo('pendiente').limitToLast(1);
+  // Viajes sin conductor asignado — índice 'estado' en DB evita descargar toda la colección.
+  // limitToLast(1) garantiza que solo llega el viaje más reciente.
+  _solicitudesRef2 = db.ref('solicitudes')
+    .orderByChild('estado')
+    .equalTo('pendiente')
+    .limitToLast(1);
   _solicitudesRef2.on('child_added', snap => {
     const v = snap.val();
     if (v && !v.unidadId && myStatus === 'LIBRE' && !_viajeActualId) mostrarViajeAsignado(v, snap.key);
