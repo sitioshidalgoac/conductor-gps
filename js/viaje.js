@@ -63,8 +63,34 @@ function setStatus(s) {
 
       viajeActivo = null;
     } else {
-      console.warn('⚠️ Coordenadas GPS no disponibles, viaje no guardado');
-      toast('⚠️ Sin señal GPS — viaje no registrado', 'warn');
+      // GPS no disponible al finalizar — guardar con coordenadas de inicio y estado incompleto
+      const inicio     = viajeActivo.startTime;
+      const fin        = Date.now();
+      const durMinutos = Math.max(1, Math.round((fin - inicio) / 60000));
+
+      const viaje = {
+        id:        historial.length + 1,
+        inicio:    firebase.database.ServerValue.TIMESTAMP,
+        fin:       firebase.database.ServerValue.TIMESTAMP,
+        fecha:     new Date(inicio).toLocaleDateString('es-MX'),
+        horaIni:   new Date(inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        horaFin:   new Date(fin).toLocaleTimeString('es-MX',   { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        duracion:  durMinutos,
+        distancia: '0.0',
+        latIni: viajeActivo.startLat, lngIni: viajeActivo.startLng,
+        latFin: viajeActivo.startLat, lngFin: viajeActivo.startLng,
+        estado: 'incompleto' // GPS no disponible al finalizar
+      };
+
+      historial.unshift(viaje);
+      tripViajes++;
+      renderHistorial();
+
+      if (db && driverUnit) {
+        db.ref('historial/' + driverUnit + '/' + viaje.id).set(viaje).catch(() => {});
+      }
+
+      toast('⚠️ Sin GPS al finalizar — viaje guardado como incompleto', 'warn');
       viajeActivo = null;
     }
   }
@@ -230,16 +256,41 @@ function aceptarViaje() {
   btn.textContent = '⏳ ACEPTANDO...';
   btn.disabled    = true;
 
-  db.ref('solicitudes/' + _viajeActualId).update({
-    estado:       'aceptado',
-    conductorId:  driverUnit,
-    unidadNumero: driverUnit,
-    aceptadoEn:   firebase.database.ServerValue.TIMESTAMP,
-  }).then(() => {
+  const solicitudRef = db.ref('solicitudes/' + _viajeActualId);
+  const _vData = _viajeActualData || {};
+
+  // Transacción atómica: solo el primer conductor que llegue puede aceptar.
+  // Si otro conductor ya lo tomó, la transacción aborta sin modificar nada.
+  solicitudRef.transaction(current => {
+    if (!current) return current; // nodo eliminado — abortar
+    if (current.estado !== 'pendiente' || current.conductorId) {
+      return; // undefined → abortar: ya fue tomado
+    }
+    return {
+      ...current,
+      estado:       'aceptado',
+      conductorId:  driverUnit,
+      unidadNumero: driverUnit,
+      aceptadoEn:   firebase.database.ServerValue.TIMESTAMP,
+    };
+  }, (error, committed) => {
+    if (error) {
+      toast('❌ Error al aceptar: ' + error.message, 'danger');
+      btn.textContent = '✓ ACEPTAR';
+      btn.disabled    = false;
+      return;
+    }
+    if (!committed) {
+      // Otro conductor llegó primero
+      toast('⚠️ Este viaje ya fue tomado por otro conductor', 'warn');
+      cerrarModalViaje();
+      mostrarPantallaEspera();
+      return;
+    }
+    // Éxito — este conductor ganó la transacción
     setStatus('OCUPADO');
     cerrarModalViaje();
     toast('✅ Viaje aceptado — ¡En camino!', 'ok');
-    const _vData = _viajeActualData || {};
     viajeActivo = {
       startTime:     Date.now(),
       startLat: lat, startLng: lng,
@@ -250,10 +301,6 @@ function aceptarViaje() {
       destino:       _vData.destino || '',
     };
     actualizarPanelViaje();
-  }).catch(e => {
-    toast('❌ Error al aceptar: ' + e.message, 'danger');
-    btn.textContent = '✓ ACEPTAR';
-    btn.disabled    = false;
   });
 }
 
@@ -389,10 +436,26 @@ function btnNavegar() {
   const dLat = viajeActivo && viajeActivo.clienteLat;
   const dLng = viajeActivo && viajeActivo.clienteLng;
   if (!dLat || !dLng) { toast('⚠️ Sin coordenadas del cliente', 'warn'); return; }
+
+  // Intenta abrir Waze app; si no está instalada el navegador lo ignorará.
+  // Solo si el intento falla (iframe trick) abre la versión web como fallback.
   const wazeApp = 'waze://?ll=' + dLat + ',' + dLng + '&navigate=yes';
-  const waze    = 'https://waze.com/ul?ll=' + dLat + ',' + dLng + '&navigate=yes';
-  window.open(wazeApp, '_blank');
-  setTimeout(() => { window.open(waze, '_blank'); }, 800);
+  const wazeWeb = 'https://waze.com/ul?ll=' + dLat + ',' + dLng + '&navigate=yes';
+
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = wazeApp;
+  document.body.appendChild(iframe);
+
+  // Si la app no abre en 1.5s, redirige a la web como fallback
+  const fallback = setTimeout(() => {
+    window.open(wazeWeb, '_blank');
+  }, 1500);
+
+  // Si la página pierde el foco, la app se abrió — cancelar el fallback
+  window.addEventListener('blur', () => clearTimeout(fallback), { once: true });
+
+  setTimeout(() => document.body.removeChild(iframe), 2000);
   toast('🗺️ Abriendo navegación GPS...', 'ok');
 }
 
