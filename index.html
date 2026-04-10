@@ -791,8 +791,15 @@ function doLogin() {
   if (!name) { toast('⚠️ Escribe tu nombre completo', 'warn'); return; }
   if (!pass) { toast('⚠️ Escribe el código de acceso', 'warn'); return; }
 
-  // Autenticación vía Firebase Auth (email construido desde número de unidad)
-  const email = 'unidad' + unit.toLowerCase().replace(/\s/g,'') + '@sitiohidalgo.mx';
+  // Fix 3: Verificar que Firebase esté inicializado antes de intentar el login
+  if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length) {
+    toast('❌ Error interno: Firebase no inicializado. Recarga la página.', 'danger');
+    return;
+  }
+
+  // Fix 2: Eliminar TODOS los caracteres no alfanuméricos (guiones, espacios, etc.)
+  // para que "TX-01" genere "unidadtx01@sitiohidalgo.mx" de forma consistente
+  const email = 'unidad' + unit.toLowerCase().replace(/[^a-z0-9]/g,'') + '@sitiohidalgo.mx';
   const btn = document.getElementById('btn-login');
   btn.textContent = 'CONECTANDO...'; btn.disabled = true;
 
@@ -830,7 +837,7 @@ function doLogin() {
       cargarCalificacionesConductor();
       // Verificar estado de conexión
       _actualizarBannerOffline();
-    }))
+    }) // Fix 1: eliminado paréntesis extra que causaba el congelamiento
     .catch(e => {
       const msg = e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password'
         ? '❌ Unidad o código incorrecto'
