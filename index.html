@@ -9,15 +9,16 @@
 <link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- firebase-firestore-compat eliminado: no se usa en conductor y su carga genera errores del SDK -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="js/firebase-config.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/gps.js"></script>
-<script src="js/sos.js"></script>
-<script src="js/viaje.js"></script>
+<script src="js/firebase-config.js?v=2"></script>
+<script src="js/ui.js?v=2"></script>
+<script src="js/gps.js?v=2"></script>
+<script src="js/sos.js?v=2"></script>
+<script src="js/viaje.js?v=2"></script>
 <!-- Filtro para silenciar warnings nativos de librerías en Chrome (Quirks, XHR Sync) -->
 <script>
   (function(){
@@ -725,6 +726,12 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
     </div>
   </div>
 
+  <div id="estado-buttons" style="display:flex; gap:10px; justify-content:center; margin:20px 0;">
+    <button onclick="cambiarEstado('disponible')" id="btn-libre" style="padding:15px 25px; border:2px solid #00ff88; background:transparent; color:#00ff88; font-weight:bold; border-radius:8px; cursor:pointer; font-size:16px;">LIBRE</button>
+    <button onclick="cambiarEstado('ocupado')" id="btn-ocupado" style="padding:15px 25px; border:2px solid #ffaa00; background:transparent; color:#ffaa00; font-weight:bold; border-radius:8px; cursor:pointer; font-size:16px;">OCUPADO</button>
+    <button onclick="cambiarEstado('descanso')" id="btn-descanso" style="padding:15px 25px; border:2px solid #888; background:transparent; color:#888; font-weight:bold; border-radius:8px; cursor:pointer; font-size:16px;">DESCANSO</button>
+  </div>
+
   <button onclick="salirEspera()" style="
     background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.25);
     border-radius:12px;padding:12px 24px;color:var(--red);
@@ -838,6 +845,7 @@ function doLogin() {
       _actualizarBannerOffline();
     }) // Fix 1: eliminado paréntesis extra que causaba el congelamiento
     .catch(e => {
+      console.error('❌ Firebase Auth error — code:', e.code, '| message:', e.message);
       const msg = e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password'
         ? '❌ Unidad o código incorrecto'
         : e.code === 'auth/too-many-requests'
@@ -849,6 +857,27 @@ function doLogin() {
 }
 
 // ════════════════════════════════════════
+// CAMBIO DE ESTADO
+// ════════════════════════════════════════
+function cambiarEstado(nuevoEstado) {
+  if (!driverUnit) return;
+
+  // Sincronizar myStatus para que sendPosConOffline (gps.js) no sobreescriba el estado cada 5s
+  const mapToMyStatus = { disponible: 'LIBRE', ocupado: 'OCUPADO', descanso: 'DESCANSO' };
+  if (mapToMyStatus[nuevoEstado]) myStatus = mapToMyStatus[nuevoEstado];
+
+  firebase.database().ref('unidades/' + driverUnit + '/estado').set(nuevoEstado);
+
+  // Resaltar botón activo
+  document.getElementById('btn-libre').style.background = nuevoEstado === 'disponible' ? '#00ff88' : 'transparent';
+  document.getElementById('btn-libre').style.color = nuevoEstado === 'disponible' ? '#000' : '#00ff88';
+  document.getElementById('btn-ocupado').style.background = nuevoEstado === 'ocupado' ? '#ffaa00' : 'transparent';
+  document.getElementById('btn-ocupado').style.color = nuevoEstado === 'ocupado' ? '#000' : '#ffaa00';
+  document.getElementById('btn-descanso').style.background = nuevoEstado === 'descanso' ? '#888' : 'transparent';
+  document.getElementById('btn-descanso').style.color = nuevoEstado === 'descanso' ? '#000' : '#888';
+}
+
+// ════════════════════════════════════════
 // LOGOUT — MEJORADO
 // ════════════════════════════════════════
 function doLogout() {
@@ -856,6 +885,7 @@ function doLogout() {
   
   // Detener monitor y limpiar todos los listeners Firebase
   stopStatusMonitor();
+  if (db) db.ref('.info/connected').off();
   cleanupUIListeners();
   cleanupSOSListeners();
   cleanupViajeListeners();
