@@ -52,13 +52,16 @@ function initializeDriverStatus() {
   // Listener de conexión real con Firebase RTDB
   db.ref('.info/connected').on('value', snap => {
     const connTxt = document.getElementById('conn-txt');
+    const connDot = document.querySelector('.conn-dot');
     if (!connTxt) return;
     if (snap.val() === true) {
       connTxt.textContent = 'EN LÍNEA';
       connTxt.style.color = '#00FF88';
+      if (connDot) { connDot.style.background = '#00FF88'; connDot.style.boxShadow = '0 0 6px #00FF88'; }
     } else {
       connTxt.textContent = 'RECONECTANDO...';
       connTxt.style.color = '#ffaa00';
+      if (connDot) { connDot.style.background = '#ffaa00'; connDot.style.boxShadow = '0 0 6px #ffaa00'; }
     }
   });
 

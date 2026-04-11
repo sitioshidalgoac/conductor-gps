@@ -229,14 +229,24 @@ function sendPosConOffline() {
   }
 
   if (db && driverUnit) {
+    console.log(`📡 GPS → RTDB [${new Date().toLocaleTimeString('es-MX')}] unidades/${driverUnit} | lat:${lat.toFixed(5)} lng:${lng.toFixed(5)} | estado:${_mapEstado(myStatus)}`);
     db.ref('unidades/' + driverUnit).update({
       ...payload,
       online:        true,
       ultimoReporte: firebase.database.ServerValue.TIMESTAMP,
       timestamp:     firebase.database.ServerValue.TIMESTAMP,
       lastSeen:      firebase.database.ServerValue.TIMESTAMP,
+    }).then(() => {
+      const connTxt = document.getElementById('conn-txt');
+      const connDot = document.querySelector('.conn-dot');
+      if (connTxt) { connTxt.textContent = 'EN LÍNEA'; connTxt.style.color = '#00FF88'; }
+      if (connDot) { connDot.style.background = '#00FF88'; connDot.style.boxShadow = '0 0 6px #00FF88'; }
     }).catch(err => {
       console.error('❌ RTDB error en sendPosConOffline/unidades — code:', err.code, '| message:', err.message, err);
+      const connTxt = document.getElementById('conn-txt');
+      const connDot = document.querySelector('.conn-dot');
+      if (connTxt) { connTxt.textContent = 'ERROR RTDB'; connTxt.style.color = '#F43F5E'; }
+      if (connDot) { connDot.style.background = '#F43F5E'; connDot.style.boxShadow = '0 0 6px #F43F5E'; }
       _offlineQueue.push(payload);
       _guardarColaOffline();
     });
