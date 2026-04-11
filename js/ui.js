@@ -81,6 +81,7 @@ var _alertRef = null;
 
 function subscribeMessages() {
   if (!db) return;
+  if (_msgRef) { _msgRef.off(); _msgRef = null; } // guard anti-duplicado
   _msgRef = db.ref('mensajes').limitToLast(30);
   _msgRef.on('child_added', snap => {
     const m = snap.val();
@@ -95,6 +96,7 @@ function subscribeMessages() {
 
 function subscribeAlerts() {
   if (!db) return;
+  if (_alertRef) { _alertRef.off(); _alertRef = null; } // guard anti-duplicado
   _alertRef = db.ref('alertas_sos');
   _alertRef.on('child_added', snap => {
     const a = snap.val();

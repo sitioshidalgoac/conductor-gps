@@ -54,11 +54,15 @@ function initializeDriverStatus() {
 
   ref.set({
     id:            driverUnit,
+    unidadId:      driverUnit,
     name:          driverName,
+    nombre:        driverName,
     status:        'LIBRE',
+    estado:        'disponible',
     online:        true,
     lat:           0,
     lng:           0,
+    hora_gps:      new Date().toLocaleTimeString('es-MX'),
     speed:         0,
     accuracy:      0,
     conectadoEn:   now,

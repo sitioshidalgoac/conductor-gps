@@ -14,7 +14,8 @@ function confirmSOS() {
 
   if (db && driverUnit) {
     db.ref('unidades/' + driverUnit).update({
-      status: 'SOS',
+      status:        'SOS',
+      estado:        'sos',
       sosActivadoEn: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
       console.log('🚨 SOS actualizado en Firebase');
@@ -41,6 +42,7 @@ var _sosResetRef = null;
 
 function listenSOSReset() {
   if (!db || !driverUnit) return;
+  if (_sosResetRef) { _sosResetRef.off(); _sosResetRef = null; } // guard anti-duplicado
   _sosResetRef = db.ref('unidades/' + driverUnit + '/status');
   _sosResetRef.on('value', snap => {
     const s = snap.val();

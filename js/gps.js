@@ -47,6 +47,12 @@ function onGPSErr(e) {
   );
 }
 
+/** Mapea el status interno (LIBRE/OCUPADO/...) al campo 'estado' requerido por RTDB */
+function _mapEstado(s) {
+  const m = { LIBRE: 'disponible', OCUPADO: 'ocupado', DESCANSO: 'descanso', SOS: 'sos' };
+  return m[String(s).toUpperCase()] || 'disponible';
+}
+
 function sendPos() {
   if (!db || !driverUnit || lat === null) return;
 
@@ -57,17 +63,21 @@ function sendPos() {
   ref.child('status').onDisconnect().set('OFFLINE');
 
   ref.update({
-    id: driverUnit,
-    name: driverName,
+    id:       driverUnit,
+    unidadId: driverUnit,
+    name:     driverName,
+    nombre:   driverName,
     lat, lng,
-    speed: spd,
+    hora_gps: new Date().toLocaleTimeString('es-MX'),
+    speed:    spd,
     accuracy: acc,
-    status: String(myStatus).toUpperCase(),
-    online: true,
+    status:   String(myStatus).toUpperCase(),
+    estado:   _mapEstado(myStatus),
+    online:   true,
     ultimoReporte: now,
-    timestamp: now,
-    lastSeen: now,
-    'sync-check': firebase.database.ServerValue.TIMESTAMP
+    timestamp:     now,
+    lastSeen:      now,
+    'sync-check':  firebase.database.ServerValue.TIMESTAMP
   }).catch(err => {
     console.error('❌ Error actualizando posición en Firebase:', err);
   });
@@ -197,9 +207,17 @@ window.addEventListener('offline', () => {
 function sendPosConOffline() {
   if (!lat || !lng) return;
   const payload = {
-    id: driverUnit, name: driverName,
-    lat, lng, speed: spd, accuracy: acc,
-    status: myStatus, ts: Date.now(),
+    id:       driverUnit,
+    unidadId: driverUnit,
+    name:     driverName,
+    nombre:   driverName,
+    lat, lng,
+    hora_gps: new Date().toLocaleTimeString('es-MX'),
+    speed:    spd,
+    accuracy: acc,
+    status:   myStatus,
+    estado:   _mapEstado(myStatus),
+    ts:       Date.now(),
   };
 
   if (!_isOnline || !db) {
@@ -212,7 +230,7 @@ function sendPosConOffline() {
   if (db && driverUnit) {
     db.ref('unidades/' + driverUnit).update({
       ...payload,
-      online: true,
+      online:        true,
       ultimoReporte: firebase.database.ServerValue.TIMESTAMP,
       timestamp:     firebase.database.ServerValue.TIMESTAMP,
       lastSeen:      firebase.database.ServerValue.TIMESTAMP,

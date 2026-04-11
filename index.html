@@ -387,8 +387,8 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
     <input class="finp" type="text" id="l-unit" placeholder="Ej: TX-01" maxlength="10" autocomplete="off" inputmode="text">
     <label class="flbl">NOMBRE COMPLETO</label>
     <input class="finp" type="text" id="l-name" placeholder="Tu nombre completo" autocomplete="off">
-    <label class="flbl">CÓDIGO DE ACCESO</label>
-    <input class="finp" type="password" id="l-pass" placeholder="••••••••••" maxlength="20">
+    <!-- Contraseña unificada hardcodeada — campo oculto para compatibilidad -->
+    <input type="hidden" id="l-pass" value="SitiosHidalgo2024">
     <button class="btn-login" id="btn-login">INICIAR TURNO</button>
     <div class="nota">
       <strong>SITIOS HIDALGO A.C. DE NOCHIXTLÁN</strong><br>
@@ -785,11 +785,10 @@ document.getElementById('l-pass').addEventListener('keyup', e => { if(e.key==='E
 function doLogin() {
   const unit = document.getElementById('l-unit').value.trim().toUpperCase();
   const name = document.getElementById('l-name').value.trim();
-  const pass = document.getElementById('l-pass').value.trim();
+  const pass = 'SitiosHidalgo2024'; // contraseña unificada para todos los conductores
 
   if (!unit) { toast('⚠️ Escribe el número de unidad', 'warn'); return; }
   if (!name) { toast('⚠️ Escribe tu nombre completo', 'warn'); return; }
-  if (!pass) { toast('⚠️ Escribe el código de acceso', 'warn'); return; }
 
   // Fix 3: Verificar que Firebase esté inicializado antes de intentar el login
   if (typeof firebase === 'undefined' || !firebase.apps || !firebase.apps.length) {
