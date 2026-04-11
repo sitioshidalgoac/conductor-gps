@@ -10,7 +10,7 @@ const FB = {
   authDomain:        "sitios-hidalgo-gps.firebaseapp.com",
   databaseURL:       "https://sitios-hidalgo-gps-default-rtdb.firebaseio.com",
   projectId:         "sitios-hidalgo-gps",
-  storageBucket:     "sitios-hidalgo-gps.firebasestorage.app",
+  storageBucket:     "sitios-hidalgo-gps.appspot.com",
   messagingSenderId: "140903781731",
   appId:             "1:140903781731:web:2178219a57a3244db42f56"
 };
@@ -49,6 +49,19 @@ var statusMonitorInt = null;
 function initializeDriverStatus() {
   if (!db || !driverUnit) return;
 
+  // Listener de conexión real con Firebase RTDB
+  db.ref('.info/connected').on('value', snap => {
+    const connTxt = document.getElementById('conn-txt');
+    if (!connTxt) return;
+    if (snap.val() === true) {
+      connTxt.textContent = 'EN LÍNEA';
+      connTxt.style.color = '#00FF88';
+    } else {
+      connTxt.textContent = 'RECONECTANDO...';
+      connTxt.style.color = '#ffaa00';
+    }
+  });
+
   const ref = db.ref('unidades/' + driverUnit);
   const now = firebase.database.ServerValue.TIMESTAMP;
 
@@ -60,9 +73,7 @@ function initializeDriverStatus() {
     status:        'LIBRE',
     estado:        'disponible',
     online:        true,
-    lat:           0,
-    lng:           0,
-    hora_gps:      new Date().toLocaleTimeString('es-MX'),
+    hora_gps:      Date.now(),
     speed:         0,
     accuracy:      0,
     conectadoEn:   now,
@@ -72,8 +83,8 @@ function initializeDriverStatus() {
     console.log('✅ Estado inicial sincronizado en Firebase — LIBRE');
     startStatusMonitor();
   }).catch(err => {
-    console.error('❌ Error inicializando estado:', err);
-    toast('⚠️ Error de conexión inicial', 'warn');
+    console.error('❌ RTDB error en initializeDriverStatus — code:', err.code, '| message:', err.message, err);
+    toast('⚠️ Error de conexión inicial — ver consola', 'warn');
   });
 }
 

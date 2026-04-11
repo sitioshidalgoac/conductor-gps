@@ -68,7 +68,7 @@ function sendPos() {
     name:     driverName,
     nombre:   driverName,
     lat, lng,
-    hora_gps: new Date().toLocaleTimeString('es-MX'),
+    hora_gps: Date.now(),
     speed:    spd,
     accuracy: acc,
     status:   String(myStatus).toUpperCase(),
@@ -182,7 +182,8 @@ function _enviarColaOffline() {
   lote.forEach(pos => {
     updates['historial_pos/' + driverUnit + '/' + pos.ts] = pos;
   });
-  db.ref().update(updates).catch(() => {
+  db.ref().update(updates).catch(err => {
+    console.error('❌ RTDB error en _enviarColaOffline/historial_pos — code:', err.code, '| message:', err.message, err);
     _offlineQueue = [...lote, ..._offlineQueue];
     _guardarColaOffline();
   });
@@ -212,7 +213,7 @@ function sendPosConOffline() {
     name:     driverName,
     nombre:   driverName,
     lat, lng,
-    hora_gps: new Date().toLocaleTimeString('es-MX'),
+    hora_gps: Date.now(),
     speed:    spd,
     accuracy: acc,
     status:   myStatus,
@@ -234,7 +235,8 @@ function sendPosConOffline() {
       ultimoReporte: firebase.database.ServerValue.TIMESTAMP,
       timestamp:     firebase.database.ServerValue.TIMESTAMP,
       lastSeen:      firebase.database.ServerValue.TIMESTAMP,
-    }).catch(() => {
+    }).catch(err => {
+      console.error('❌ RTDB error en sendPosConOffline/unidades — code:', err.code, '| message:', err.message, err);
       _offlineQueue.push(payload);
       _guardarColaOffline();
     });

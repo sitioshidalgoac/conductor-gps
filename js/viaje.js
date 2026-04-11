@@ -57,6 +57,7 @@ function setStatus(s) {
         db.ref(viajePath).set(viaje).then(() => {
           toast('✅ Viaje registrado en bitácora', 'ok');
         }).catch(err => {
+          console.error('❌ RTDB error en setStatus/historial_viajes — code:', err.code, '| message:', err.message, err);
           toast('⚠️ Error guardando viaje: ' + err.message, 'warn');
         });
       }
@@ -113,12 +114,15 @@ function setStatus(s) {
   });
 
   // Sincronizar con Firebase
+  const estadoMap = { LIBRE: 'disponible', OCUPADO: 'ocupado', DESCANSO: 'descanso', SOS: 'sos' };
   if (db && driverUnit) {
     db.ref('unidades/' + driverUnit).update({
-      status: statusUpperCase,
+      status:            statusUpperCase,
+      estado:            estadoMap[statusUpperCase] || 'disponible',
       ultimoEstado:      firebase.database.ServerValue.TIMESTAMP,
       lastStatusChange:  firebase.database.ServerValue.TIMESTAMP
     }).catch(err => {
+      console.error('❌ RTDB error en setStatus/unidades — code:', err.code, '| message:', err.message, err);
       toast('⚠️ Error conectando con Base: ' + err.message, 'warn');
     });
   }
