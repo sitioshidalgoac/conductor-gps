@@ -5,7 +5,7 @@
 //           firebase-auth-compat (cargados antes en el HTML)
 // ════════════════════════════════════════
 
-const FB = {
+const firebaseConfig = {
   apiKey:            "AIzaSyDEu6dOk9mUqXp52lyY6vBEm4GAsgU0ESU",
   authDomain:        "sitios-hidalgo-gps.firebaseapp.com",
   databaseURL:       "https://sitios-hidalgo-gps-default-rtdb.firebaseio.com",
@@ -26,7 +26,7 @@ var db = null;
 // ════════════════════════════════════════
 (function init() {
   try {
-    firebase.initializeApp(FB);
+    firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     console.log('✅ Firebase OK');
   } catch (e) {

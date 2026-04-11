@@ -1,0 +1,18 @@
+{
+  "hosting": {
+    "site": "sitios-hidalgo-conductor",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "**/node_modules/**",
+      "**/.git/**",
+      "package*.json",
+      "CLAUDE.md",
+      "*.zip",
+      "conductor_inline.js",
+      "main_block.js"
+    ],
+    "rewrites": [{"source": "**", "destination": "/index.html"}]
+  }
+}
