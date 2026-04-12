@@ -76,18 +76,26 @@ function renderHistorial() {
 
 // ── Radio / Chat ─────────────────────────
 // Referencias guardadas para poder hacer .off() en logout
-var _msgRef   = null;
-var _alertRef = null;
+var _msgRef      = null;
+var _alertRef    = null;
+var _despachoRef = null;
+
+// Timestamp de inicio de sesión — ignoramos mensajes anteriores en el canal de radio
+var _sessionStart = 0;
 
 function subscribeMessages() {
   if (!db) return;
+  _sessionStart = Date.now();
   if (_msgRef) { _msgRef.off(); _msgRef = null; } // guard anti-duplicado
-  _msgRef = db.ref('mensajes').limitToLast(30);
+  // CORREGIDO: Base escribe en /radio, no en /mensajes
+  _msgRef = db.ref('radio').limitToLast(30);
   _msgRef.on('child_added', snap => {
     const m = snap.val();
     if (!m) return;
-    addMsg(m.from, m.text, m.from === driverUnit ? 'mine' : '');
-    if (m.from !== driverUnit) {
+    const from = m.remitente || m.from || '?';
+    const text = m.mensaje   || m.text  || '';
+    addMsg(from, text, from === driverUnit ? 'mine' : '');
+    if (from !== driverUnit) {
       unread++;
       updateUnreadBadge();
     }
@@ -105,10 +113,40 @@ function subscribeAlerts() {
   });
 }
 
+/**
+ * Escucha mensajes directos de la Base en /unidades/{uid}/despacho.
+ * Cuando llega un mensaje muestra el modal grande; "Enterado" borra el nodo.
+ */
+function subscribeDespacho() {
+  if (!db || !driverUnit) return;
+  if (_despachoRef) { _despachoRef.off(); _despachoRef = null; }
+  _despachoRef = db.ref('unidades/' + driverUnit + '/despacho');
+  _despachoRef.on('value', snap => {
+    const m = snap.val();
+    if (!m) return;
+    showDespachoModal(m, snap.ref);
+  });
+}
+
+function showDespachoModal(m, ref) {
+  const modal = document.getElementById('modal-despacho');
+  if (!modal) return;
+  document.getElementById('modal-msg-de').textContent   = 'De: ' + (m.de || m.remitente || 'Base');
+  document.getElementById('modal-msg-text').textContent = m.mensaje || m.text || '';
+  document.getElementById('modal-msg-ok').onclick = () => {
+    ref.remove(); // Borra /unidades/{uid}/despacho de la RTDB
+    modal.style.display = 'none';
+  };
+  modal.style.display = 'flex';
+  // Vibrar si el dispositivo lo soporta
+  if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+}
+
 /** Llamar desde doLogout() para evitar memory leaks */
 function cleanupUIListeners() {
-  if (_msgRef)   { _msgRef.off();   _msgRef   = null; }
-  if (_alertRef) { _alertRef.off(); _alertRef = null; }
+  if (_msgRef)      { _msgRef.off();      _msgRef      = null; }
+  if (_alertRef)    { _alertRef.off();    _alertRef    = null; }
+  if (_despachoRef) { _despachoRef.off(); _despachoRef = null; }
   unread = 0;
 }
 
@@ -126,7 +164,13 @@ function sendChat() {
   const txt = inp.value.trim();
   if (!txt || !driverUnit) return;
   inp.value = '';
-  if (db) db.ref('mensajes').push({ from: driverUnit, text: txt, ts: firebase.database.ServerValue.TIMESTAMP });
+  // CORREGIDO: escribir en /radio con estructura compatible con Base
+  if (db) db.ref('radio').push({
+    remitente: driverUnit,
+    mensaje: txt,
+    timestamp: Date.now(),
+    tipo: 'conductor',
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

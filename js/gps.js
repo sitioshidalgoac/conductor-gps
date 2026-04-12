@@ -6,6 +6,8 @@
 // ════════════════════════════════════════
 
 // ── GPS principal ────────────────────────
+var _lastSend = 0; // Timestamp del último envío inmediato a Firebase
+
 function startGPS() {
   if (!navigator.geolocation) { toast('⚠️ GPS no disponible', 'warn'); return; }
   document.getElementById('gps-status').style.display = 'block';
@@ -13,10 +15,11 @@ function startGPS() {
   watchId = navigator.geolocation.watchPosition(
     onPos,
     onGPSErr,
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
   );
 
-  sendInt = setInterval(sendPosConOffline, 5000);
+  // Keepalive: sincroniza posición aunque el GPS no dispare (ej. señal débil)
+  sendInt = setInterval(sendPosConOffline, 10000);
 }
 
 function onPos(p) {
@@ -36,6 +39,13 @@ function onPos(p) {
   const gpsEl = document.getElementById('sos-gps-txt');
   if (gpsEl) gpsEl.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
   actualizarMiMapa(lat, lng, acc);
+
+  // Envío inmediato a Firebase al recibir nueva coordenada (throttle 1.5 s para no saturar RTDB)
+  const _ahora = Date.now();
+  if (_ahora - _lastSend >= 1500) {
+    _lastSend = _ahora;
+    sendPosConOffline();
+  }
 }
 
 function onGPSErr(e) {
@@ -83,7 +93,7 @@ function sendPos() {
   });
 
   document.getElementById('conn-txt').textContent = 'EN LÍNEA';
-  document.getElementById('conn-txt').style.color = '#00FF88';
+  document.getElementById('conn-txt').style.color = '#28a745';
 }
 
 // ── Wake Lock ────────────────────────────
@@ -238,15 +248,15 @@ function sendPosConOffline() {
       lastSeen:      firebase.database.ServerValue.TIMESTAMP,
     }).then(() => {
       const connTxt = document.getElementById('conn-txt');
-      const connDot = document.querySelector('.conn-dot');
-      if (connTxt) { connTxt.textContent = 'EN LÍNEA'; connTxt.style.color = '#00FF88'; }
-      if (connDot) { connDot.style.background = '#00FF88'; connDot.style.boxShadow = '0 0 6px #00FF88'; }
+      const connDot = document.getElementById('status-dot');
+      if (connTxt) { connTxt.textContent = 'EN LÍNEA'; connTxt.style.color = '#28a745'; }
+      if (connDot) { connDot.style.background = '#28a745'; connDot.style.boxShadow = '0 0 8px #28a745'; }
     }).catch(err => {
       console.error('❌ RTDB error en sendPosConOffline/unidades — code:', err.code, '| message:', err.message, err);
       const connTxt = document.getElementById('conn-txt');
-      const connDot = document.querySelector('.conn-dot');
-      if (connTxt) { connTxt.textContent = 'ERROR RTDB'; connTxt.style.color = '#F43F5E'; }
-      if (connDot) { connDot.style.background = '#F43F5E'; connDot.style.boxShadow = '0 0 6px #F43F5E'; }
+      const connDot = document.getElementById('status-dot');
+      if (connTxt) { connTxt.textContent = 'ERROR RTDB'; connTxt.style.color = '#dc3545'; }
+      if (connDot) { connDot.style.background = '#dc3545'; connDot.style.boxShadow = '0 0 8px #dc3545'; }
       _offlineQueue.push(payload);
       _guardarColaOffline();
     });

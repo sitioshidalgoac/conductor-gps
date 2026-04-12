@@ -52,21 +52,22 @@ function initializeDriverStatus() {
   // Listener de conexión real con Firebase RTDB
   db.ref('.info/connected').on('value', snap => {
     const connTxt = document.getElementById('conn-txt');
-    const connDot = document.querySelector('.conn-dot');
-    if (!connTxt) return;
+    const connDot = document.getElementById('status-dot');
     if (snap.val() === true) {
-      connTxt.textContent = 'EN LÍNEA';
-      connTxt.style.color = '#00FF88';
-      if (connDot) { connDot.style.background = '#00FF88'; connDot.style.boxShadow = '0 0 6px #00FF88'; }
+      if (connTxt) { connTxt.textContent = 'EN LÍNEA'; connTxt.style.color = '#28a745'; }
+      if (connDot) { connDot.style.background = '#28a745'; connDot.style.boxShadow = '0 0 8px #28a745'; }
     } else {
-      connTxt.textContent = 'RECONECTANDO...';
-      connTxt.style.color = '#ffaa00';
-      if (connDot) { connDot.style.background = '#ffaa00'; connDot.style.boxShadow = '0 0 6px #ffaa00'; }
+      if (connTxt) { connTxt.textContent = 'SIN SEÑAL'; connTxt.style.color = '#dc3545'; }
+      if (connDot) { connDot.style.background = '#dc3545'; connDot.style.boxShadow = '0 0 8px #dc3545'; }
     }
   });
 
   const ref = db.ref('unidades/' + driverUnit);
   const now = firebase.database.ServerValue.TIMESTAMP;
+
+  // Si la app cierra de golpe o pierde señal, Firebase borra el nodo
+  // automáticamente desde el servidor (sin depender del cliente).
+  ref.onDisconnect().remove();
 
   ref.set({
     id:            driverUnit,

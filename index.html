@@ -144,9 +144,13 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
 
 .topbar{
   background:rgba(10,21,32,.95);border-bottom:1px solid var(--brd);
-  padding:10px 14px;display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
   flex-shrink:0;
 }
+.topbar-logo{text-align:center;}
+.topbar-logo .tl-name{font-family:var(--head);font-size:9px;letter-spacing:3px;color:var(--gold);}
+.topbar-logo .tl-sub{font-family:var(--mono);font-size:7px;letter-spacing:1px;color:var(--muted);}
+.conn{font-family:var(--mono);font-size:9px;display:flex;align-items:center;gap:5px;justify-self:end;}
 .drv-av{
   width:36px;height:36px;border-radius:50%;
   background:linear-gradient(135deg,var(--cyan),var(--blue));
@@ -156,9 +160,12 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
 .drv-info{display:flex;align-items:center;}
 .drv-name{font-family:var(--head);font-size:17px;letter-spacing:2px;}
 .drv-unit{font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:2px;}
-.conn{font-family:var(--mono);font-size:9px;display:flex;align-items:center;gap:5px;}
-.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite;}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+#status-dot{
+  width:15px;height:15px;border-radius:50%;
+  background:#6c757d; /* gris por defecto — se cambia vía JS */
+  flex-shrink:0;position:relative;z-index:9999;
+  transition:background .3s,box-shadow .3s;
+}
 
 /* ── PÁGINAS ── */
 .pages{flex:1;overflow:hidden;position:relative;}
@@ -234,6 +241,16 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
 .msg.mine .msg-from{color:var(--green);text-align:right;}
 .msg.mine .msg-txt{background:rgba(0,255,136,.06);border-color:rgba(0,255,136,.2);}
 .msg.alert .msg-txt{background:rgba(255,23,68,.08);border-color:rgba(255,23,68,.3);color:#FF7043;}
+
+/* ── MODAL DESPACHO ── */
+#modal-despacho{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.82);align-items:center;justify-content:center;padding:24px;}
+.mdsp-box{background:#1a1a2e;border:2px solid #ffaa00;border-radius:20px;padding:28px 24px;max-width:380px;width:100%;text-align:center;animation:mdspIn .25s ease;}
+@keyframes mdspIn{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.mdsp-icon{font-size:48px;margin-bottom:8px;}
+.mdsp-title{font-family:var(--head);font-size:20px;letter-spacing:2px;color:#ffaa00;margin-bottom:6px;}
+.mdsp-de{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px;letter-spacing:1px;}
+.mdsp-msg{background:rgba(255,170,0,.08);border:1px solid rgba(255,170,0,.3);border-radius:12px;padding:16px;font-size:16px;line-height:1.6;color:#fff;margin-bottom:24px;word-break:break-word;}
+.mdsp-ok{background:#ffaa00;color:#000;border:none;border-radius:14px;padding:16px 32px;font-family:var(--head);font-size:18px;letter-spacing:2px;cursor:pointer;width:100%;font-weight:700;}
 .cinp{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--brd);flex-shrink:0;}
 .cinp input{flex:1;background:rgba(255,255,255,.04);border:1px solid var(--brd);border-radius:10px;padding:11px 14px;color:#fff;font-family:var(--mono);font-size:13px;outline:none;}
 .cinp input:focus{border-color:var(--cyan);}
@@ -368,6 +385,17 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
 </head>
 <body>
 
+<!-- MODAL DESPACHO BASE -->
+<div id="modal-despacho">
+  <div class="mdsp-box">
+    <div class="mdsp-icon">📻</div>
+    <div class="mdsp-title">MENSAJE DE BASE</div>
+    <div class="mdsp-de" id="modal-msg-de">De: Base</div>
+    <div class="mdsp-msg" id="modal-msg-text"></div>
+    <button class="mdsp-ok" id="modal-msg-ok">✅ ENTERADO</button>
+  </div>
+</div>
+
 <!-- BANNER OFFLINE -->
 <div id="offline-banner">
   📵 SIN CONEXIÓN — Posiciones en cola <span class="offline-queue-badge" id="offline-count">0</span>
@@ -416,7 +444,11 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
         <div class="drv-unit" id="d-unit">Unidad —</div>
       </div>
     </div>
-    <div class="conn"><div class="conn-dot"></div><span id="conn-txt" style="font-family:var(--mono);font-size:9px;color:#4A6070">CONECTANDO</span></div>
+    <div class="topbar-logo">
+      <div class="tl-name">SITIOS HIDALGO</div>
+      <div class="tl-sub">A.C. NOCHIXTLÁN</div>
+    </div>
+    <div class="conn"><div id="status-dot"></div><span id="conn-txt" style="font-family:var(--mono);font-size:9px;color:#4A6070">CONECTANDO</span></div>
   </div>
 
   <div class="pages">
@@ -726,10 +758,10 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
     </div>
   </div>
 
-  <div id="estado-buttons" style="display:flex; gap:10px; justify-content:center; margin:20px 0;">
-    <button onclick="cambiarEstado('disponible')" id="btn-libre" style="padding:15px 25px; border:2px solid #00ff88; background:transparent; color:#00ff88; font-weight:bold; border-radius:8px; cursor:pointer; font-size:16px;">LIBRE</button>
-    <button onclick="cambiarEstado('ocupado')" id="btn-ocupado" style="padding:15px 25px; border:2px solid #ffaa00; background:transparent; color:#ffaa00; font-weight:bold; border-radius:8px; cursor:pointer; font-size:16px;">OCUPADO</button>
-    <button onclick="cambiarEstado('descanso')" id="btn-descanso" style="padding:15px 25px; border:2px solid #888; background:transparent; color:#888; font-weight:bold; border-radius:8px; cursor:pointer; font-size:16px;">DESCANSO</button>
+  <div id="estado-buttons" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%;max-width:320px;margin:20px 0;">
+    <button onclick="cambiarEstado('disponible')" id="btn-libre" style="padding:12px 4px;border:2px solid #00ff88;background:transparent;color:#00ff88;font-weight:bold;border-radius:10px;cursor:pointer;font-size:14px;letter-spacing:1px;">LIBRE</button>
+    <button onclick="cambiarEstado('ocupado')" id="btn-ocupado" style="padding:12px 4px;border:2px solid #ffaa00;background:transparent;color:#ffaa00;font-weight:bold;border-radius:10px;cursor:pointer;font-size:14px;letter-spacing:1px;">OCUPADO</button>
+    <button onclick="cambiarEstado('descanso')" id="btn-descanso" style="padding:12px 4px;border:2px solid #888;background:transparent;color:#888;font-weight:bold;border-radius:10px;cursor:pointer;font-size:13px;letter-spacing:1px;">DESCANSO</button>
   </div>
 
   <button onclick="salirEspera()" style="
@@ -830,6 +862,7 @@ function doLogin() {
       startGPS();
       subscribeMessages();
       subscribeAlerts();
+      subscribeDespacho();
       listenSOSReset();
 
       toast('✅ Bienvenido, ' + name + ' · Buen turno!', 'ok');
@@ -890,20 +923,15 @@ function doLogout() {
   cleanupSOSListeners();
   cleanupViajeListeners();
 
-  // Guardar estado final en Firebase
+  // Eliminar el nodo del conductor en Firebase para que el marcador
+  // desaparezca del mapa de la Base de forma inmediata.
   if (db && driverUnit) {
     const ref = db.ref('unidades/' + driverUnit);
-    ref.update({
-      status: 'OFFLINE',
-      online: false,
-      speed: 0,
-      desconectadoEn: firebase.database.ServerValue.TIMESTAMP,
-      ultimaTurno: tripViajes,
-      ultimosKm: totalKm.toFixed(1)
-    }).then(() => {
-      console.log('✅ Sesión cerrada correctamente');
+    ref.onDisconnect().cancel(); // Cancelar el hook antes de cerrar voluntariamente
+    ref.remove().then(() => {
+      console.log('✅ Nodo de unidad eliminado — turno cerrado');
     }).catch(err => {
-      console.error('❌ Error al desconectar:', err);
+      console.error('❌ Error al eliminar nodo:', err);
     });
   }
 
