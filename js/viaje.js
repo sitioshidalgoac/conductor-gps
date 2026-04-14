@@ -114,11 +114,11 @@ function setStatus(s) {
   });
 
   // Sincronizar con Firebase
-  const estadoMap = { LIBRE: 'disponible', OCUPADO: 'ocupado', DESCANSO: 'descanso', SOS: 'sos' };
+  const estadoMap = { LIBRE: 'libre', OCUPADO: 'ocupado', DESCANSO: 'descanso', SOS: 'sos' };
   if (db && driverUnit) {
     db.ref('unidades/' + driverUnit).update({
-      status:            statusUpperCase,
-      estado:            estadoMap[statusUpperCase] || 'disponible',
+      status:            statusUpperCase.toLowerCase(),
+      estado:            estadoMap[statusUpperCase] || 'libre',
       ultimoEstado:      firebase.database.ServerValue.TIMESTAMP,
       lastStatusChange:  firebase.database.ServerValue.TIMESTAMP
     }).catch(err => {
@@ -267,7 +267,7 @@ function aceptarViaje() {
   // Si otro conductor ya lo tomó, la transacción aborta sin modificar nada.
   solicitudRef.transaction(current => {
     if (!current) return current; // nodo eliminado — abortar
-    if (current.estado !== 'pendiente' || current.conductorId) {
+    if (current.estado !== 'enviado' || current.conductorId) {
       return; // undefined → abortar: ya fue tomado
     }
     return {
@@ -340,14 +340,14 @@ function escucharSolicitudesAsignadas() {
     .equalTo(driverUnit);
   _solicitudesRef1.on('child_added', snap => {
     const v = snap.val();
-    if (v && v.estado === 'pendiente' && myStatus === 'LIBRE') mostrarViajeAsignado(v, snap.key);
+    if (v && v.estado === 'enviado' && myStatus === 'LIBRE') mostrarViajeAsignado(v, snap.key);
   });
 
   // Viajes sin conductor asignado — índice 'estado' en DB evita descargar toda la colección.
   // limitToLast(1) garantiza que solo llega el viaje más reciente.
   _solicitudesRef2 = db.ref('solicitudes')
     .orderByChild('estado')
-    .equalTo('pendiente')
+    .equalTo('enviado')
     .limitToLast(1);
   _solicitudesRef2.on('child_added', snap => {
     const v = snap.val();

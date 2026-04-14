@@ -74,8 +74,8 @@ function initializeDriverStatus() {
     unidadId:      driverUnit,
     name:          driverName,
     nombre:        driverName,
-    status:        'LIBRE',
-    estado:        'disponible',
+    status:        'libre',
+    estado:        'libre',
     online:        true,
     hora_gps:      Date.now(),
     speed:         0,
@@ -111,7 +111,7 @@ function startStatusMonitor() {
         console.warn('🔄 Resintonizando...');
 
         db.ref('unidades/' + driverUnit).update({
-          status:     localStatus,
+          status:     localStatus.toLowerCase(),
           lastResync: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
           console.log('✅ Status resintonizado');

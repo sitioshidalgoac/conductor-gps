@@ -59,8 +59,8 @@ function onGPSErr(e) {
 
 /** Mapea el status interno (LIBRE/OCUPADO/...) al campo 'estado' requerido por RTDB */
 function _mapEstado(s) {
-  const m = { LIBRE: 'disponible', OCUPADO: 'ocupado', DESCANSO: 'descanso', SOS: 'sos' };
-  return m[String(s).toUpperCase()] || 'disponible';
+  const m = { LIBRE: 'libre', OCUPADO: 'ocupado', DESCANSO: 'descanso', SOS: 'sos' };
+  return m[String(s).toUpperCase()] || 'libre';
 }
 
 function sendPos() {
@@ -81,7 +81,7 @@ function sendPos() {
     hora_gps: Date.now(),
     speed:    spd,
     accuracy: acc,
-    status:   String(myStatus).toUpperCase(),
+    status:   String(myStatus).toLowerCase(),
     estado:   _mapEstado(myStatus),
     online:   true,
     ultimoReporte: now,
@@ -226,7 +226,7 @@ function sendPosConOffline() {
     hora_gps: Date.now(),
     speed:    spd,
     accuracy: acc,
-    status:   myStatus,
+    status:   myStatus.toLowerCase(),
     estado:   _mapEstado(myStatus),
     ts:       Date.now(),
   };

@@ -759,7 +759,7 @@ body{background:var(--bg);color:var(--silver);font-family:var(--body);height:100
   </div>
 
   <div id="estado-buttons" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%;max-width:320px;margin:20px 0;">
-    <button onclick="cambiarEstado('disponible')" id="btn-libre" style="padding:12px 4px;border:2px solid #00ff88;background:transparent;color:#00ff88;font-weight:bold;border-radius:10px;cursor:pointer;font-size:14px;letter-spacing:1px;">LIBRE</button>
+    <button onclick="cambiarEstado('libre')" id="btn-libre" style="padding:12px 4px;border:2px solid #00ff88;background:transparent;color:#00ff88;font-weight:bold;border-radius:10px;cursor:pointer;font-size:14px;letter-spacing:1px;">LIBRE</button>
     <button onclick="cambiarEstado('ocupado')" id="btn-ocupado" style="padding:12px 4px;border:2px solid #ffaa00;background:transparent;color:#ffaa00;font-weight:bold;border-radius:10px;cursor:pointer;font-size:14px;letter-spacing:1px;">OCUPADO</button>
     <button onclick="cambiarEstado('descanso')" id="btn-descanso" style="padding:12px 4px;border:2px solid #888;background:transparent;color:#888;font-weight:bold;border-radius:10px;cursor:pointer;font-size:13px;letter-spacing:1px;">DESCANSO</button>
   </div>
@@ -896,14 +896,14 @@ function cambiarEstado(nuevoEstado) {
   if (!driverUnit) return;
 
   // Sincronizar myStatus para que sendPosConOffline (gps.js) no sobreescriba el estado cada 5s
-  const mapToMyStatus = { disponible: 'LIBRE', ocupado: 'OCUPADO', descanso: 'DESCANSO' };
+  const mapToMyStatus = { libre: 'LIBRE', ocupado: 'OCUPADO', descanso: 'DESCANSO' };
   if (mapToMyStatus[nuevoEstado]) myStatus = mapToMyStatus[nuevoEstado];
 
-  firebase.database().ref('unidades/' + driverUnit + '/estado').set(nuevoEstado);
+  firebase.database().ref('unidades/' + driverUnit).update({ estado: nuevoEstado, status: nuevoEstado });
 
   // Resaltar botón activo
-  document.getElementById('btn-libre').style.background = nuevoEstado === 'disponible' ? '#00ff88' : 'transparent';
-  document.getElementById('btn-libre').style.color = nuevoEstado === 'disponible' ? '#000' : '#00ff88';
+  document.getElementById('btn-libre').style.background = nuevoEstado === 'libre' ? '#00ff88' : 'transparent';
+  document.getElementById('btn-libre').style.color = nuevoEstado === 'libre' ? '#000' : '#00ff88';
   document.getElementById('btn-ocupado').style.background = nuevoEstado === 'ocupado' ? '#ffaa00' : 'transparent';
   document.getElementById('btn-ocupado').style.color = nuevoEstado === 'ocupado' ? '#000' : '#ffaa00';
   document.getElementById('btn-descanso').style.background = nuevoEstado === 'descanso' ? '#888' : 'transparent';

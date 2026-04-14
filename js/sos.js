@@ -14,7 +14,7 @@ function confirmSOS() {
 
   if (db && driverUnit) {
     db.ref('unidades/' + driverUnit).update({
-      status:        'SOS',
+      status:        'sos',
       estado:        'sos',
       sosActivadoEn: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
@@ -46,10 +46,10 @@ function listenSOSReset() {
   _sosResetRef = db.ref('unidades/' + driverUnit + '/status');
   _sosResetRef.on('value', snap => {
     const s = snap.val();
-    if (s && s !== 'SOS' && myStatus === 'SOS') {
-      myStatus = s;
+    if (s && String(s).toUpperCase() !== 'SOS' && myStatus === 'SOS') {
+      myStatus = String(s).toUpperCase(); // estado local siempre en mayúsculas
       document.getElementById('sos-activo').style.display = 'none';
-      document.querySelectorAll('.st-btn').forEach(b => b.classList.toggle('on', b.dataset.st === s));
+      document.querySelectorAll('.st-btn').forEach(b => b.classList.toggle('on', b.dataset.st === myStatus));
       toast('✅ SOS desactivado por Base Central', 'ok');
     }
   });
